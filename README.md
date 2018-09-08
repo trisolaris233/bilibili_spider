@@ -129,8 +129,10 @@ https://api.bilibili.com/x/web-interface/archive/stat
 ### 参数：
 * aid: 视频的av号
 
-返回值:
-`
+### 返回值：
+
+```json
+
 {
   "code":0,
   "message":"0",
@@ -150,7 +152,9 @@ https://api.bilibili.com/x/web-interface/archive/stat
     "copyright":1
   }
 }
-`
+```
+
+
 
 ---
 
