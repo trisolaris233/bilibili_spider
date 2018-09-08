@@ -1,0 +1,13 @@
+// https: //api.bilibili.com/x/relation/stat
+{
+  "code": 0,
+  "message": "0",
+  "ttl": 1,
+  "data": {
+    "mid": 唯一标识符,
+    "following": 关注的人,
+    "whisper": 0,
+    "black": 0,
+    "follower": 粉丝数
+  }
+}
