@@ -81,7 +81,7 @@ class submit(object):
 #   coin: 投币数量
 #   like: 推荐数量
 #   rank: 历史最高排名
-class submitEx(submitInfo):
+class submitEx(submit):
     def __init__(
       self,
       typeid = 0,
