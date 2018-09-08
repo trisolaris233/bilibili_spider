@@ -1,3 +1,6 @@
 *.xml
 testGetInfo.py
 ./template/
+msyhbd.ttf
+*.txt
+*.html
