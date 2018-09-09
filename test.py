@@ -167,16 +167,19 @@ class up(object):
 #   sendtime: 发送时间
 #   content: 内容
 #   dtype: 弹幕类型
+#   adi: 视频的AV号
 class danmaku(object):
     def __init__(
       self,
       sendtime="",
       content="",
-      dtype=0
+      dtype=0,
+      aid=0
     ):
         self.sendtime = sendtime
         self.content = content
         self.type = dtype
+        self.aid = aid
 
 
 # 简易投稿信息
@@ -237,6 +240,8 @@ class submit(object):
         resList = []
         try:
             text = getHTMLText(url)
+            if text == "failed":
+                return "failed"
             soup = BeautifulSoup(text, 'lxml')
             ds = soup.find_all('d')
 
@@ -247,7 +252,8 @@ class submit(object):
                 resList.append(danmaku(
                   time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(eval(dps[4]))),
                   item.get_text(),
-                  eval(dps[1])
+                  eval(dps[1]),
+                  self.aid
                 ))
 
         except:
@@ -413,6 +419,7 @@ def getUpTaskThread(id):
                 if upInfo != "failed":
                     # 检查up是否合法
                     if checkVaildUp(upInfo):
+                        # 将得到的用户信息推入用户输出队列
                         upOptsLock.acquire()
                         upOpts.put(upInfo)
                         upOptsLock.release()
@@ -452,7 +459,7 @@ def getSubmitThread(id):
             upInfo = submitTasks.get()
             submitTasksLock.release()
 
-            print("thread No.%d has gained user %d.\n" % (id[0], upInfo.mid))
+            print("thread No.%d has gained user %d's submits.\n" % (id[0], upInfo.mid))
             # 取得视频
             submitInfo = upInfo.getSubmitEx()
 
@@ -463,9 +470,16 @@ def getSubmitThread(id):
 
             # 没有上传视频或者获取失败
             if submitInfo != []:
+                # 将得到的视频信息压入视频输出队列
                 submitOptsLock.acquire()
                 submitOpts.put(submitInfo)
                 submitOptsLock.release()
+
+                # 弹幕任务队列上锁
+                danmakuTasksLock.acquire()
+                # 将视频信息推入弹幕任务队列
+                danmakuTasks.put(submitInfo)
+                danmakuTasksLock.release()
 
         else:
             submitTasksLock.release()
@@ -519,11 +533,59 @@ def getSubmitOptThread(id):
 
 def getDanmakuThread(id):
     while not danmakuExitFlag:
-        pass
+        danmakuTasksLock.acquire()
+        if not danmakuTasks.empty():
+            archieves = danmakuTasks.get()
+            danmakuTasksLock.release()
+
+            # 遍历每个视频
+            for i in archieves:
+
+                d = i.getDanmaku()
+                print(
+                    "thread No.%d has gained danmaku of av%d" % (id[0], i.aid))
+                # ip被封锁， 循环获取
+                while d == "failed":
+                    print("failed to get danmaku")
+                    d = i.getDanmaku()
+
+                if d != []:
+                    # 将得到的弹幕压入弹幕输出队列
+                    danmakuOptsLock.acquire()
+                    danmakuOpts.put(d)
+                    danmakuOptsLock.release()
+
+        else:
+            danmakuTasksLock.release()
+        time.sleep(1)
+
 
 
 def getDanmakuOptThread(id):
-    pass
+    while not danmakuExitFlag:
+        danmakuOptsLock.acquire()
+        if not danmakuOpts.empty():
+            d = danmakuOpts.get()
+            danmakuOptsLock.release()
+
+
+            # 遍历所有弹幕
+            for i in d:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''
+                        INSERT INTO danmaku(
+                            sendtime,
+                            content,
+                            dtype,
+                            aid
+                        ) VALUES(?,?,?,?);
+                    ''',
+                    (i.sendtime, i.content, i.dtype, i.aid)
+                )
+                conn.commit()
+        else:
+            danmakuOptsLock.release()
 
 
 def init():
@@ -608,7 +670,8 @@ def createDanmakuTable():
             CREATE TABLE danmaku(
                 sendtime DATETIME NOT NULL,
                 content TEXT NOT NULL,
-                dtype INT UNSIGNED NOT NULL
+                dtype INT UNSIGNED NOT NULL,
+                aid INT UNSIGNED NOT NULL
             );
         '''
         cursor = conn.cursor()
@@ -649,8 +712,15 @@ if __name__ == "__main__":
         threads.append(thread)
         threadid = threadid + 1
 
+    # 开启n条线程爬取弹幕
+    for i in range(0, 2):
+        thread = spThread(getDanmakuThread, threadid)
+        thread.start()
+        threads.append(thread)
+        threadid = threadid + 1
 
-    while not upTasks.empty() or not submitOpts.empty():
+
+    while not upTasks.empty() or not submitTasks.empty() or not danmakuTasks.empty():
         upOptsLock.acquire()
         if not upOpts.empty():
             tmp = upOpts.get()
@@ -693,10 +763,29 @@ if __name__ == "__main__":
         else:
             submitOptsLock.release()
 
+        danmakuOptsLock.acquire()
+        if not danmakuOpts.empty():
+            d = danmakuOpts.get()
+            danmakuOptsLock.release()
+
+            # 遍历所有弹幕
+            for i in d:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''
+                        INSERT INTO danmaku(
+                            sendtime,
+                            content,
+                            dtype,
+                            aid
+                        ) VALUES(?,?,?,?);
+                    ''', (i.sendtime, i.content, i.type, i.aid))
+                conn.commit()
+        else:
+            danmakuOptsLock.release()
+
 
     upExitFlag = 1
 
     for i in threads:
         i.join()
-
-
