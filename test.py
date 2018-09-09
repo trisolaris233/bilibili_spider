@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 import jieba
 from os import path
 import jieba.posseg as psg
+import sqlite3 as sql
+from queue import Queue
+import threading
 
 
 headers = {
@@ -35,56 +38,44 @@ submitUrl = "https://space.bilibili.com/ajax/member/getSubmitVideos"
 danmakuUrl = "https://api.bilibili.com/x/v1/dm/list.so"
 submitDetailUrl = "https://api.bilibili.com/x/web-interface/archive/stat"
 archieveUrl = "https://www.bilibili.com/video/av"
+databaseName = ""
 
+total = 370000000
+taskSize = 100
+taskNum = int(total / taskSize)
 
-class mysql(object):
-    def __init__(
-      self,
-      host="localhost",
-      user="root",
-      pwd="",
-      db=""
-    ):
-        self.host = host
-        self.user = user
-        self.pwd = pwd
-        self.db = db
-        self.conn = None
-        self.cur = None
+upTasks = Queue()       # 用户任务队列
+upOpts = Queue()        # 用户输出队列
 
-    #链接数据库
-    def connect(self):
-        try:
-            self.conn = pymysql.connect(
-                self.host, self.user, self.pwd, self.db, charset='utf8')
-        except:
-            return False
-        self.cur = self.conn.cursor()
-        return True
+submitTasks = Queue()   # 用户视频队列
+submitOpts = Queue()    # 视频输出队列
 
-    def execute(self, sql, params=None):
-        self.connect()
-        try:
-            if self.conn and self.cur:
-                self.cur.execute(sql, params)
-                self.conn.commit()
-        except:
-            self.conn.close()
-            return False
-        return True
+danmakuTasks = Queue()  # 弹幕任务队列
+danmakuOpts = Queue()   # 弹幕输出队列
 
-    def fetchall(self, sql, params=None):
-        self.execute(sql, params)
-        return self.cur.fetchall()
+# 队列的线程琐
+upTasksLock = threading.Lock()
+upOptsLock = threading.Lock()
+submitTasksLock = threading.Lock()
+submitOptsLock = threading.Lock()
+danmakuTasksLock = threading.Lock()
+danmakuOptsLock = threading.Lock()
+
+upExitFlag = 0
+submitExitFlag = 0
+danmakuExitFlag = 0
+
+threads = []
+conn = None
 
 
 # up主的信息
 #   mid: up的唯一识别符
 #   follower: up主的粉丝数量
 class up(object):
-    def __init__(self, mid=0, follwer=0):
+    def __init__(self, mid=0, follower=0):
         self.mid = mid
-        self.follwer = follwer
+        self.follower = follower
 
     def getSubmitNumber(self):
         url = "%s?mid=%s&page=1&pagesize=1" % (submitUrl, str(self.mid))
@@ -114,7 +105,8 @@ class up(object):
                   item['created'],
                   item['video_review'],
                   item['favorites'],
-                  item['aid']
+                  item['aid'],
+                  self.mid
                 ))
 
         except:
@@ -129,7 +121,11 @@ class up(object):
         submitDict = ""
         resList = []
         try:
-            submitDict = getDict(getHTMLText(url))
+            text = getHTMLText(url)
+            if text == "failed":
+                return "failed"
+
+            submitDict = getDict(text)
             # print(submitDict)
             vlist = submitDict['data']['vlist']
 
@@ -155,6 +151,7 @@ class up(object):
                       item['video_review'],
                       item['favorites'],
                       aid,
+                      self.mid,
                       detail['reply'],
                       detail['coin'],
                       detail['like'],
@@ -199,7 +196,8 @@ class submit(object):
       createdTime = 0,
       danmaku = 0,
       favorites = 0,
-      aid = 0
+      aid = 0,
+      mid = 0
       ) :
         self.typeid = typeid
         self.play = play
@@ -208,6 +206,7 @@ class submit(object):
         self.danmaku = danmaku
         self.favorites = favorites
         self.aid = aid
+        self.mid = mid
 
     # 获取视频oid
     def getOid(self):
@@ -276,6 +275,7 @@ class submitEx(submit):
       danmaku = 0,
       favorites = 0,
       aid = 0,
+      mid = 0,
       reply = 0,
       coin = 0,
       like = 0,
@@ -288,12 +288,32 @@ class submitEx(submit):
           createdTime,
           danmaku,
           favorites,
-          aid
+          aid,
+          mid
         )
         self.reply = reply
         self.coin = coin
         self.like = like
         self.rank = rank
+
+
+class spThread (threading.Thread):
+    def __init__(self, pfun, *para):
+        threading.Thread.__init__(self)
+        self.pfun = pfun
+        self.para = para
+
+    def run(self):
+        try:
+            self.pfun(self.para)
+        except:
+            pass
+
+# 判断合法的up
+def checkVaildUp(upInfo):
+    if upInfo.follower >= 30000:
+        return True
+    return False
 
 # 获取html页面
 def getHTMLText(url):
@@ -303,20 +323,25 @@ def getHTMLText(url):
         r.encoding = r.apparent_encoding
         return r.text
     except:
-        return ""
+        return "failed"
 
 
 # 将字符串转为字典
 def getDict(text):
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except:
+        return ""
 
 
 # 根据mid取得up主对象
 def getUp(mid):
     url = "%s?vmid=%s" % (upInfoUrl, str(mid))
-    updict = getDict(getHTMLText(url))
-
+    text = getHTMLText(url)
+    if text == "failed":
+        return "failed"
     try:
+        updict = getDict(text)
         return up(updict['data']['mid'], updict['data']['follower'])
     except:
         return ""
@@ -325,7 +350,8 @@ def getUp(mid):
 def printObj(obj):
     print(obj.__dict__)
 
-
+# 生成哲♂学字典
+# 实测没啥卵用
 def makePhilosophyDict():
     f = open(
         "dict.txt",
@@ -344,6 +370,8 @@ def makePhilosophyDict():
         f2.write(item)
         f2.write("\n")
 
+# 测试用的程序
+# 画一个云图
 def drawWordCloud():
     text = open('danmaku.txt', 'r', encoding='UTF-8').read()
     cut_text = ",".join(jieba.cut(text))
@@ -359,9 +387,316 @@ def drawWordCloud():
 
     plt.imshow(wordcloud, interpolation="bilinear")
     plt.axis("off")
-    plt.savefig('ciyun3.png')
+    plt.savefig('ciyun.png')
     plt.show()
     print("complete")
 
+# 获取Up主基本信息线程
+def getUpTaskThread(id):
+    global upExitFlag
+    while not upExitFlag:
+        # 取得琐
+        upTasksLock.acquire()
+        if not upTasks.empty():
+            # 从队列中取出数据
+            data = upTasks.get()
+            # 释放锁
+            upTasksLock.release()
+            print("thread No.%s has carried task %s\n" % (str(id[0]), str(data)))
+
+            i = data * taskSize + 1
+            endi = (data + 1) * taskSize + 1
+
+            while i < endi:
+                upInfo = getUp(i)
+                # 如果没有被屏蔽
+                if upInfo != "failed":
+                    # 检查up是否合法
+                    if checkVaildUp(upInfo):
+                        upOptsLock.acquire()
+                        upOpts.put(upInfo)
+                        upOptsLock.release()
+
+                        # 将取到的用户插入视频任务队列 爬取视频
+                        submitTasksLock.acquire()
+                        submitTasks.put(upInfo)
+                        submitTasksLock.release()
+                    i = i + 1
+                # 被屏蔽就持续循环
+            print("thread No.%s has finished task %s\n" % (str(id[0]), str(data)))
+        else:
+            upTasksLock.release()
+        # 歇会儿吧您呐!
+        time.sleep(1)
+
+def getUpOptThread(id):
+    while not upExitFlag:
+        upOptsLock.acquire()
+        if not upOpts.empty():
+            tmp = upOpts.get()
+            upOptsLock.release()
+            s = "INSERT INTO upInfo(mid, follower) VALUES('%d', '%d')" % (
+                tmp.mid, tmp.follower)
+            cursor = conn.cursor()
+            cursor.execute(s)
+            conn.commit()
+            print("make a record")
+        else:
+            upOptsLock.release()
+
+def getSubmitThread(id):
+    while not submitExitFlag:
+        submitTasksLock.acquire()
+        if not submitTasks.empty():
+            # 取得用户
+            upInfo = submitTasks.get()
+            submitTasksLock.release()
+
+            print("thread No.%d has gained user %d.\n" % (id[0], upInfo.mid))
+            # 取得视频
+            submitInfo = upInfo.getSubmitEx()
+
+            # 爬取失败， 循环爬取
+            while submitInfo == "failed":
+                print("failed to get submits.\n")
+                submitInfo = upInfo.getSubmitEx()
+
+            # 没有上传视频或者获取失败
+            if submitInfo != []:
+                submitOptsLock.acquire()
+                submitOpts.put(submitInfo)
+                submitOptsLock.release()
+
+        else:
+            submitTasksLock.release()
+
+        time.sleep(1)
+    pass
+
+def getSubmitOptThread(id):
+    while not submitExitFlag:
+        submitOptsLock.acquire()
+        if not submitOpts.empty():
+            submits = submitOpts.get()
+            submitOptsLock.release()
+
+            for i in submits:
+                s = '''
+                    INSERT INTO submit(
+                        typeid,
+                        play,
+                        title,
+                        createTime,
+                        danmaku,
+                        favorites,
+                        aid,
+                        reply,
+                        coin,
+                        likes,
+                        rank
+                    ) VALUES(
+                        '%d', '%d', '%s', '%s', '%d',
+                        '%d', '%d', '%d', '%d', '%d',
+                        '%d' );
+                ''' % (
+                    i.typeid,
+                    i.play,
+                    i.title,
+                    i.createTime,
+                    i.danmaku,
+                    i.favorites,
+                    i.aid,
+                    i.reply,
+                    i.coin,
+                    i.like,
+                    i.rank
+                )
+                cursor = conn.cursor()
+                cursor.execute(s)
+                conn.commit()
+        else:
+            submitOptsLock.release()
+
+def getDanmakuThread(id):
+    while not danmakuExitFlag:
+        pass
+
+
+def getDanmakuOptThread(id):
+    pass
+
+
+def init():
+    global conn
+    print("init database...")
+    databaseName = input("input your database name: ")
+    databasePath = "%s.db" % (databaseName)
+
+    while path.exists(databasePath):
+        print("invalid database name. please enter a filename that does not exist")
+        databaseName = input("input your database name: ")
+        databasePath = "%s.db" % (databaseName)
+
+    # 链接数据库
+    conn = sql.connect(databasePath)
+
+    # 创建数据表
+    callList = []
+    callList.append(createUpInfoTable)
+    callList.append(createSubmitTable)
+    callList.append(createDanmakuTable)
+    promptList = ["upInfo", "submit", "danmaku"]
+    i = 0
+
+    for item in promptList:
+        print("creating table '%s'" % (item))
+        if callList[i]():
+            print("creating table '%s' successfully" % (item))
+        else:
+            print("failed to create table '%s'" % (item))
+            input("press any key to exit...")
+            quit()
+        i = i + 1
+
+
+    print("init database successfully")
+
+
+def createUpInfoTable():
+    try:
+        s = '''CREATE TABLE upInfo(
+        mid INT UNSIGNED NOT NULL,
+        follower INT UNSIGNED NOT NULL
+        );'''
+        cursor = conn.cursor()
+        cursor.execute(s)
+        cursor.close()
+        conn.commit()
+    except:
+        return False
+    return True
+
+def createSubmitTable():
+    try:
+        s = '''
+            CREATE TABLE submit(
+                typeid INT UNSIGNED NOT NULL,
+                play INT UNSIGNED NOT NULL,
+                title TEXT NOT NULL,
+                createTime DATETIME NOT NULL,
+                danmaku INT UNSIGNED NOT NULL,
+                favorites INT UNSIGNED NOT NULL,
+                aid INT UNSIGNED NOT NULL,
+                reply INT UNSIGNED NOT NULL,
+                coin INT UNSIGNED NOT NULL,
+                likes INT UNSIGNED NOT NULL,
+                rank INT UNSIGNED NOT NULL,
+                upmid INT UNSIGNED NOT NULL
+            );
+        '''
+        cursor = conn.cursor()
+        cursor.execute(s)
+        cursor.close()
+        conn.commit()
+    except:
+        return False
+    return True
+
+def createDanmakuTable():
+    try:
+        s = '''
+            CREATE TABLE danmaku(
+                sendtime DATETIME NOT NULL,
+                content TEXT NOT NULL,
+                dtype INT UNSIGNED NOT NULL
+            );
+        '''
+        cursor = conn.cursor()
+        cursor.execute(s)
+        cursor.close()
+        conn.commit()
+    except:
+        return False
+    return True
+
+
 
 if __name__ == "__main__":
+    init()
+    threadid = 0
+
+    print("loading tasks...")
+    # 遍历所有用户
+    # 如果要遍历全部用户 将37000替换成 taskNum.
+    # 仅供测试用
+    for i in range(0, 37000):
+        upTasks.put(i)
+    print("loading tasks successfully")
+
+    # 开启n条线程爬用户基本数据
+    # 三条线程就炸了， 2条差不多..
+    # 代理IP是必需品呀！！
+    for i in range(0, 2):
+        thread = spThread(getUpTaskThread, threadid)
+        thread.start()
+        threads.append(thread)
+        threadid = threadid + 1
+
+    # 再开启n条线程爬取视频信息
+    for i in range(0, 2):
+        thread = spThread(getSubmitThread, threadid)
+        thread.start()
+        threads.append(thread)
+        threadid = threadid + 1
+
+
+    while not upTasks.empty() or not submitOpts.empty():
+        upOptsLock.acquire()
+        if not upOpts.empty():
+            tmp = upOpts.get()
+            upOptsLock.release()
+            s = "INSERT INTO upInfo(mid, follower) VALUES('%d', '%d')" % (
+                tmp.mid, tmp.follower)
+            cursor = conn.cursor()
+            cursor.execute(s)
+            conn.commit()
+        else:
+            upOptsLock.release()
+        submitOptsLock.acquire()
+
+        if not submitOpts.empty():
+            submits = submitOpts.get()
+            submitOptsLock.release()
+
+            # 遍历所有投稿
+            for i in submits:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''INSERT INTO submit(
+                        typeid,
+                        play,
+                        title,
+                        createTime,
+                        danmaku,
+                        favorites,
+                        aid,
+                        reply,
+                        coin,
+                        likes,
+                        rank,
+                        upmid
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?);''',
+                    (i.typeid, i.play, i.title, time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(i.createdTime)),
+                     i.danmaku, i.favorites, i.aid, i.reply, i.coin, i.like,
+                     i.rank, i.mid))
+                conn.commit()
+        else:
+            submitOptsLock.release()
+
+
+    upExitFlag = 1
+
+    for i in threads:
+        i.join()
+
+

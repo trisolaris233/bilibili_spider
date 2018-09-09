@@ -5,3 +5,4 @@ testGetInfo.py
 *.html
 *.png
 *.ttf
+*.db
