@@ -8,3 +8,6 @@ testGetInfo.py
 *.db
 /.vscode
 /__pycache__
+.db-journal
+test2.py
+
