@@ -6,3 +6,6 @@ testGetInfo.py
 *.png
 *.ttf
 *.db
+./__pycache__/
+./vscode/
+*.db-journal
