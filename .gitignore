@@ -10,4 +10,5 @@ testGetInfo.py
 /__pycache__
 .db-journal
 test2.py
+test.py
 

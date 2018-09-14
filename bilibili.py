@@ -1,5 +1,6 @@
 import requests
 import json
+import bException
 
 upInfoUrl = "https://api.bilibili.com/x/relation/stat"
 submitUrl = "https://space.bilibili.com/ajax/member/getSubmitVideos"
@@ -7,6 +8,8 @@ danmakuUrl = "https://api.bilibili.com/x/v1/dm/list.so"
 submitDetailUrl = "https://api.bilibili.com/x/web-interface/archive/stat"
 archieveUrl = "https://www.bilibili.com/video/av"
 upInfoDetailUrl = "https://space.bilibili.com/ajax/member/GetInfo"
+replyUrl = "https://api.bilibili.com/x/v2/reply"
+subreplyUrl = "https://api.bilibili.com/x/v2/reply/reply"
 databaseName = ""
 
 headers = {
@@ -42,19 +45,24 @@ detail_headers = {
 }
 
 # 获取html页面
-def getHTMLText(url):
+def getHTMLText(url, header = headers, timeout = 3):
+    r = requests.get(url, headers=header, timeout=timeout)
     try:
-        r = requests.get(url, headers=headers, timeout=3)
         r.raise_for_status()
         r.encoding = r.apparent_encoding
         return r.text
     except:
-        return "failed"
+        raise bException.bError("Failed to get HTML Text with code = %d" % (r.status_code))
+
 
 
 # 将字符串转为字典
 def getDict(text):
     try:
         return json.loads(text)
-    except:
-        return ""
+    except bException.bError as e:
+        raise e
+
+# 打印对象
+def printObj(obj):
+    print(obj.__dict__)
