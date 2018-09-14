@@ -19,7 +19,11 @@ https://api.bilibili.com/x/relation/stat
 
 ### 参数:
 
-* vmid: up主的id
+| 参数名 | 类型 |   说明   |
+| :----: | :--: | :------: |
+|  vmid  | 整型 | up主的id |
+
+
 
 ### 返回值:
 
@@ -45,9 +49,14 @@ https://api.bilibili.com/x/relation/stat
 https://space.bilibili.com/ajax/member/getSubmitVideos
 
 ### 参数：
-* mid: up主id
-* page: 页码
-* pagesize: 一页的大小
+
+|  参数名  | 类型 |    说明    |
+| :------: | :--: | :--------: |
+|   mid    | 整型 |   up主id   |
+|   page   | 整型 |    页码    |
+| pagesize | 整型 | 一页的大小 |
+
+
 
 ### 返回值:
 ```json
@@ -98,7 +107,9 @@ https://space.bilibili.com/ajax/member/getSubmitVideos
 https://api.bilibili.com/x/v1/dm/list.so
 
 ### 参数：
-* oid： 视频的cid， 可以从页面源码中取得
+| 参数名 | 类型 |               说明               |
+| :----: | :--: | :------------------------------: |
+|  oid   | 整型 | 视频的cid， 可以从页面源码中取得 |
 
 一条弹幕的标签如下：
 
@@ -141,7 +152,11 @@ https://tieba.baidu.com/p/5798082633
 https://api.bilibili.com/x/web-interface/archive/stat
 
 ### 参数：
-* aid: 视频的av号
+| 参数名 | 类型 |    说明    |
+| :----: | :--: | :--------: |
+|  aid   | 整型 | 视频的av号 |
+
+
 
 ### 返回值：
 
@@ -178,7 +193,10 @@ https://api.bilibili.com/x/tag/archive/tags
 这个接口返回出来很多东西不知所云， 大概也只有tag_name有点用处咯
 
 ### 参数：
-* aid: 视频的av号
+
+| 参数名 | 类型 |    说明    |
+| :----: | :--: | :--------: |
+|  aid   | 整型 | 视频的av号 |
 
 ### 返回值:
 
@@ -212,10 +230,180 @@ https://api.bilibili.com/x/tag/archive/tags
 }
 ```
 
+------
+
+## 视频评论
+
+https://api.bilibili.com/x/v2/reply
+
+### 参数:
+
+| 参数名 | 类型 |                             说明                             |
+| :----: | :--: | :----------------------------------------------------------: |
+|   pn   | 整型 |                           评论页号                           |
+|  type  | 整型 | 类型? 一般为1， 如果<1则返回“评论主题的type不合法”, 如果>1则显示”禁止评论“ |
+|  oid   | 整型 |                          视频的av号                          |
+|  sort  | 整型 |     如果是0则按回复热度排序， 如果不为0则按照楼层排序。      |
 
 
 
+### 返回值：
+
+```json
+{
+  "code": 0,
+  "message": "0",
+  "ttl": 1,
+  "data": {
+    "config": {
+      "showadmin": 1,
+      "showentry": 1
+    },
+    "hots": [ // 热评， 如果没有的话则是null
+      0: 一个replies结构体， 
+    ],
+    "notice": {
+      "id": 277,  // 暂时不知所云的id
+      "title": "b站的推广字符串",
+      "content": "b站的推广字符串",
+      "link": "推广地址"
+    },
+    "page": {
+      "acount": 评论数量,
+      "count": 评论的用户数量,
+      "num": 页数,
+      "size": 每页的大小， 一般为20
+    },
+    "replies": [{   // replies结构体
+      "rpid": 回复id,
+      "oid": 回复的视频av号,
+      "type": 回复类型? 有待推敲呢， 默认是1,
+      "mid": 回复的用户名,
+      "root": 0,  // 暂时没摸清楚呢..
+      "parent": 0,  // 同上
+      "count": 2,
+      "rcount": 2,
+      "floor": 楼层号,
+      "state": 0,
+      "fansgrade": 0,
+      "attr": 0,
+      "ctime": 评论时间戳,
+      "rpid_str": "929647037",  // 也不知所云呢..
+      "root_str": "0",
+      "parent_str": "0",
+      "like": 2,  // 评论点赞数
+      "action": 0,
+      "member": {
+        "mid": "评论用户mid",
+        "uname": "用户名",
+        "sex": "性别 分为 男 女 保密",
+        "sign": "个人说明",
+        "avatar": "头像地址",
+        "rank": "10000",  // 不知道作用.. 不过暂时保留吧！
+        "DisplayRank": "0", // emmmm
+        "level_info": {
+          "current_level": 当前等级,
+          "current_min": 0,
+          "current_exp": 0,
+          "next_exp": 0
+        },
+        "pendant": {  // 整个不知道做什么的了！！
+          "pid": 190,
+          "name": "",
+          "image": "",
+          "expire": 1558022400
+        },
+        "nameplate": {  // 这个也是!!
+          "nid": 0,
+          "name": "",
+          "image": "",
+          "image_small": "",
+          "level": "",
+          "condition": ""
+        },
+        "official_verify": {
+          "type": -1,
+          "desc": ""
+        },
+        "vip": {  // 看这个名字.. 大概是vip之类的喔(这TM不是废话吗！)
+          "vipType": 2,
+          "vipDueDate": 1558022400000,
+          "dueRemark": "",
+          "accessStatus": 0,
+          "vipStatus": 1,
+          "vipStatusWarn": ""
+        },
+        "fans_detail": null,
+        "following": 0
+      },
+      "content": {
+        "message": "回复内容",
+        "plat": 楼中楼数量,
+        "device": "设备字符串？ 不过我取到的时候是空字符串就是了..",
+        "members": []
+      },
+      "replies": [
+        "... 如果有楼中楼的话就从这里开始 "
+      ]
+    }],
+    "top": 置顶评论， 一般为null吧?,
+    "upper": {
+      "mid": up主mid,
+      "top": 置顶？ 不知道呢， 一般为null咯
+    }
+  }
+```
 
 
 
+------
+
+## up主详细信息
+
+### 参数：
+
+| 参数名 |  类型  |                             说明                             |
+| :----: | :----: | :----------------------------------------------------------: |
+|  csrf  | 字符串 | 验证用, 应该根据不同浏览器和不同ip地址构造的， 可能需要手动取得也说不定呢 |
+|  mid   |  整型  |                           用户的id                           |
+
+### 返回值：
+
+```json
+{
+  "status": true,
+  "data": {
+    "mid": 用户的id,
+    "name": "用户名",
+    "sex": "男 女 或者保密",
+    "rank": 10000,
+    "face": "头像地址",
+    "regtime": 注册时间戳,
+    "spacesta": 0,
+    "birthday": "生日",
+    "sign": "个人说明",
+    "level_info": {
+      "current_level": 当前等级
+    },
+    "official_verify": {
+      "type": -1,
+      "desc": "",
+      "suffix": ""
+    },
+    // Vip状态， 参考一下， 目前还没有研究
+    "vip": {
+      "vipType": 2,
+      "vipStatus": 1
+    },
+    // 下面的几乎用不到， 不过也贴出来， 日后再研究
+    "toutu": "一个图片地址",
+    "toutuId": 一个整数,
+    "theme": "default",
+    "theme_preview": "",
+    "coins": 0,
+    "im9_sign": "363cdfe1bb013e8c507224392332d1cf",
+    "fans_badge": true
+  }
+}
+```
 
