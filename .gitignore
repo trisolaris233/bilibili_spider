@@ -1,8 +1,10 @@
 *.xml
 testGetInfo.py
-./template/
+/template
 *.txt
 *.html
 *.png
 *.ttf
 *.db
+/.vscode
+/__pycache__
