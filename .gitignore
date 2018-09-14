@@ -9,3 +9,4 @@ testGetInfo.py
 /__pycache__
 /vscode
 *.db-journal
+
