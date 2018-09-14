@@ -1,0 +1,15 @@
+*.xml
+testGetInfo.py
+/template
+*.txt
+*.html
+*.png
+*.ttf
+*.db
+/__pycache__
+/.vscode
+*.db-journal
+test.py
+test2.py
+
+
