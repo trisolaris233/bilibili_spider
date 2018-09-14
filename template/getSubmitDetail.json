@@ -1,0 +1,20 @@
+
+{
+  "code":0,
+  "message":"0",
+  "ttl":1,
+  "data": {
+    "aid":视频的av号,
+    "view":视频的播放量,
+    "danmaku":弹幕数量,
+    "reply":评论数量,
+    "favorite":收藏,
+    "coin":硬币,
+    "share":分享,
+    "like":推荐,
+    "now_rank":0,
+    "his_rank":最高排名,
+    "no_reprint":1,
+    "copyright":1
+  }
+}

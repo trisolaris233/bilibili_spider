@@ -1,0 +1,8 @@
+*.xml
+testGetInfo.py
+./template/
+*.txt
+*.html
+*.png
+*.ttf
+*.db
