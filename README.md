@@ -361,6 +361,8 @@ https://api.bilibili.com/x/v2/reply
 
 ## up主详细信息
 
+https://space.bilibili.com/ajax/member/GetInfo
+
 ### 参数：
 
 | 参数名 |  类型  |                             说明                             |

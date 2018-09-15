@@ -61,14 +61,18 @@ login_headers = {
 }
 
 # 获取html页面
-def getHTMLText(url, header = headers, timeout = 3):
-    r = requests.get(url, headers=header, timeout=timeout)
+def getHTMLText(url, header = headers, proxy = {}):
     try:
-        r.raise_for_status()
-        r.encoding = r.apparent_encoding
-        return r.text
+        r = requests.get(url, headers=header, proxies = proxy)
+        return r.status_code, r.text
     except:
-        raise bException.bError("Failed to get HTML Text with code = %d" % (r.status_code))
+        pass
+    # try:
+    #     r.raise_for_status()
+    #     r.encoding = r.apparent_encoding
+    #     return r.text
+    # except :
+    #     raise bException.bError("Failed to get HTML Text with code = %d" % (r.status_code))
 
 
 
@@ -76,8 +80,8 @@ def getHTMLText(url, header = headers, timeout = 3):
 def getDict(text):
     try:
         return json.loads(text)
-    except bException.bError as e:
-        raise e
+    except:
+        return {}
 
 # 打印对象
 def printObj(obj):

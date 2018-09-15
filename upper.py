@@ -33,6 +33,7 @@ class upper(object):
         self.mid = mid
         self.follower = follower
         self.uname = uname
+        self.face = face
         self.regtime = regtime
         self.sex = sex
         self.level = level
@@ -110,38 +111,66 @@ class upper(object):
 
 
 # 根据mid取得up主对象
-def getUpper(mid):
+# 参数:
+#   mid: 用户mid
+#   cfg: 配置文件对象
+#   proxy: 代理
+# 返回:
+#   成功返回一个upper对象, 失败返回错误码
+def getUpper(mid, cfg, proxy = {}):
     url = "%s?vmid=%s" % (bilibili.upInfoUrl, str(mid))
+    response = bilibili.getHTMLText(url)
+    if response == None:
+        return None
+    status_code = response[0]
+
+    if status_code != 200:
+        return status_code
+
+    # 获取基本信息
+    updict = bilibili.getDict(response[1])
+
+    #----------------------------------------------------------
+
+    url = bilibili.upInfoDetailUrl
+
+    postData = {
+        'csrf':
+        cfg.getAttr('csrf'),  #'099defc050cb8ad2827ca8493d06ab91'
+        'mid': mid
+    }
+    # 获取用户详细信息
+    r = requests.post(
+        bilibili.upInfoDetailUrl,
+        data=postData,
+        headers=bilibili.detail_headers,
+        proxies = proxy
+    )
+    status_code = r.status_code
+
+    # 获取失败
+    if status_code != 200:
+        return status_code
+
+
+    res = bilibili.getDict(r.text)
+    # 这里对regtime进行特殊处理是因为实践中发现regtime似乎并不是每个用户都有
+    # 有些特别的用户获取不到regtime. 另外有些字段获取的到不过为空或者其他什么奇怪的东西就是啦..
+    regtime = 0
+    if 'regtime' in res['data']:
+        regtime = res['data']['regtime']
+
     try:
-        updict = bilibili.getDict(bilibili.getHTMLText(url))
-        url = bilibili.upInfoDetailUrl
-
-        postData = {
-            'csrf': '099defc050cb8ad2827ca8493d06ab91',
-            'mid': mid
-        }
-        # 获取用户详细信息
-        r = requests.post(
-            bilibili.upInfoDetailUrl,
-            data=postData,
-            headers=bilibili.detail_headers
-        )
-        try:
-            r.raise_for_status()
-        except requests.HTTPError as e:
-            raise bException.bError(e.args)
-
-        res = bilibili.getDict(r.text)
         return upper (
             updict['data']['mid'],
             updict['data']['follower'],
             res['data']['name'],
             res['data']['face'],
-            res['data']['regtime'],
+            regtime,
+            res['data']['sex'],
             res['data']['level_info']['current_level'],
             res['data']['vip']['vipType'],
             res['data']['vip']['vipStatus']
-            )
-    except bException.bError as e:
-        print(e.args)
-    return None
+        )
+    except:
+        return None
