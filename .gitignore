@@ -11,4 +11,5 @@ testGetInfo.py
 .db-journal
 test2.py
 test.py
+*.ass
 

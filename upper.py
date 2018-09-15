@@ -4,6 +4,8 @@ import bException
 import logging
 import requests
 
+
+
 # up主的信息
 #   mid: up的唯一识别符
 #   follower: up主的粉丝数量

@@ -5,6 +5,7 @@ import danmaku
 import time
 import bException
 import reply
+import datetime
 
 # 简易投稿信息
 #   typeid: 分区id
@@ -55,25 +56,106 @@ class submit(object):
             except:
                 return -1
 
+    def __getDanmakuHelper(self, text):
+        resList = []
+        soup = BeautifulSoup(text, 'lxml')
+        ds = soup.find_all('d')
+
+        # 遍历所有弹幕标签
+        for item in ds:
+            dproperty = item.get('p')
+            dps = dproperty.split(',')
+            resList.append(
+                danmaku.danmaku(
+                    time.strftime("%Y-%m-%d %H:%M:%S",
+                                    time.localtime(eval(dps[4]))),
+                    item.get_text(), eval(dps[1]), self.aid))
+        return resList
+
+    # 获取历史弹幕
+    # date: datetime对象
+    def getHistoryDanmaku(self, date):
+        url = "%s?type=1&date=%s&oid=%d" % (
+            bilibili.historyDanmakuUrl,
+            date.strftime("%Y-%m-%d"),
+            self.getOid()
+        )
+        print(url)
+
+        try:
+            return self.__getDanmakuHelper(bilibili.getHTMLText(url, bilibili.login_headers))
+        except bException.bError as e:
+            raise e
+
+    # 获取所有历史弹幕, 另存为文件
+    def getAllDanmakus(self, path):
+        # 获取当前时间
+        today = datetime.datetime.now()
+        # 获取视频发布时间
+        createdDate = datetime.datetime.fromtimestamp(self.createdTime)
+        # 获取两日间隔
+        daysGap = today - createdDate
+
+        fileobj = open(path, 'w', encoding="UTF-8")
+        # 写入文件头
+        fileobj.write('''
+        <?xml version="1.0" encoding="UTF-8"?><i>
+        <chatserver>chat.bilibili.com</chatserver>
+        <mission>0</mission>
+        <maxlimit>%d</maxlimit>
+        <state>0</state>
+        <real_name>0</real_name>
+        <source>k-v</source>
+        ''' % (self.danmaku))
+        #循环每一天
+        for i in range(0, daysGap.days):
+            date = createdDate + datetime.timedelta(days=i)
+            # 请求地址
+            url = "%s?type=1&date=%s&oid=%d" % (
+                bilibili.historyDanmakuUrl,
+                date.strftime("%Y-%m-%d"),
+                self.getOid()
+            )
+            text = ""
+            print("getting %s\n" % (url))
+            try:
+                text = bilibili.getHTMLText(url, bilibili.login_headers)
+            except :
+                continue
+
+            soup = BeautifulSoup(text, 'lxml')
+            ds = soup.find_all('d')
+            s = set()
+            for i in ds:
+                s.add(str(i))
+            for i in s:
+                fileobj.write(i)
+
+
+        fileobj.write("</i>")
+        fileobj.close()
+
+
     # 获取弹幕列表
     def getDanmaku(self):
         url = "%s?oid=%s" % (bilibili.danmakuUrl, str(self.getOid()))
         text = ""
-        resList = []
+        # resList = []
         try:
             text = bilibili.getHTMLText(url)
-            soup = BeautifulSoup(text, 'lxml')
-            ds = soup.find_all('d')
+            # soup = BeautifulSoup(text, 'lxml')
+            # ds = soup.find_all('d')
 
-            # 遍历所有弹幕标签
-            for item in ds:
-                dproperty = item.get('p')
-                dps = dproperty.split(',')
-                resList.append(
-                    danmaku.danmaku(
-                        time.strftime("%Y-%m-%d %H:%M:%S",
-                                      time.localtime(eval(dps[4]))),
-                        item.get_text(), eval(dps[1]), self.aid))
+            # # 遍历所有弹幕标签
+            # for item in ds:
+            #     dproperty = item.get('p')
+            #     dps = dproperty.split(',')
+            #     resList.append(
+            #         danmaku.danmaku(
+            #             time.strftime("%Y-%m-%d %H:%M:%S",
+            #                           time.localtime(eval(dps[4]))),
+            #             item.get_text(), eval(dps[1]), self.aid))
+            return self.__getDanmakuHelper(text)
 
         except bException.bError as e:
             raise e
@@ -154,6 +236,7 @@ class submit(object):
 #   like: 推荐数量
 #   rank: 历史最高排名
 class submitEx(submit):
+
     def __init__(self,
                  typeid=0,
                  play=0,
